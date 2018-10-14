@@ -249,14 +249,14 @@ class VestelTV:
         if not self._ws_connected:
             self._debug("Trying to connect WS...")
             await self._ws_connect()
-            self._debug("WS connect succesful!")
+            self._debug("WS connect successful!")
 
         try:
             self._debug("!")
             if not self._tcp_connected:
                 self._debug("Trying to connect TCP...")
                 await self._tcp_connect()
-                self._debug("TCP connect succesful!")
+                self._debug("TCP connect successful!")
 
             self.muted = await self._read_tcp_data("GETMUTE\r\n",
                                                    lambda x: True if x == "ON" else False)
