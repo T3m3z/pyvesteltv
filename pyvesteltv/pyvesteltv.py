@@ -29,7 +29,6 @@ class VestelTV:
         self.muted = False
         self.program = "Unknown"
         self.source = "Unknown"
-        self.media = "Unknown"
 
         self.youtube = "stopped"
         self.netflix = "stopped"
@@ -40,9 +39,6 @@ class VestelTV:
         self.websocket = None
 
         self.last_ws_msg = ""
-
-        self._ws_connected = False
-        self._tcp_connected = False
 
         self.ws_time = 0
         self.ws_counter = 0
@@ -60,32 +56,25 @@ class VestelTV:
             self.reader, self.writer = await asyncio.open_connection(self.host,
                                                                      self.tcp_port,
                                                                      loop=self.loop)
-            self._tcp_connected = True
             self.state = True
         except TimeoutError:
             _LOGGER.error("TCP connect TimeoutError")
-            self._tcp_connected = False
-            self._handle_off()
+            self.writer = None
 
     async def _tcp_close(self):
         """Close TCP connection."""
         if self.writer:
             self.writer.close()
-        self._tcp_connected = False
+            self.writer = None
 
     async def _ws_connect(self):
         """Connect to TV via websocket protocol."""
         import websockets
         try:
             self.websocket = await websockets.connect('ws://%s:%s/' % (self.host, self.ws_port))
+            self.loop.create_task(self._ws_loop())
         except (InvalidHandshake, InvalidURI) as exp:
-            _LOGGER.error("WS connect error: " + str(exp))
-            self._handle_off()
-            self._ws_connected = False
-            return
-
-        self.loop.create_task(self._ws_loop())
-        self._ws_connected = True
+            _LOGGER.error("WS connect error: ", exc_info=True)
 
     async def _ws_loop(self):
         """Run the websocket asyncio message loop."""
@@ -105,7 +94,6 @@ class VestelTV:
                     elif not data:
                         self.ws_time = time()
                         self.ws_counter = 0
-                        self.state = True
                     self.ws_state = data
                 else:
                     msg = msg.split(":")
@@ -115,13 +103,12 @@ class VestelTV:
             _LOGGER.error("Error in _ws_loop: ", exc_info=True)
         finally:
             await self._ws_close()
-            self._handle_off()
 
     async def _ws_close(self):
         """Close websocket connection."""
         if self.websocket:
             await self.websocket.close()
-        self._ws_connected = False
+            self.websocket = None
 
     async def sendkey(self, key):
         """Send remote control key code over HTTP connction to virtual remote."""
@@ -134,6 +121,7 @@ class VestelTV:
                 async with session.post(url + "vr/remote", data=xml) as _:
                     pass
         except aiohttp.ClientError:
+            _LOGGER.debug("Error sending key code %d" % key)
             pass
 
     def get_volume(self):
@@ -151,6 +139,9 @@ class VestelTV:
     def get_muted(self):
         """Returns boolean indicating if TV is muted"""
         return self.muted
+
+    def get_websocket_state(self):
+        return self.websocket is not None and self.websocket.open
 
     def discovered(self):
         """Returns boolean indicating if TV is discovered through DIAL."""
@@ -183,7 +174,6 @@ class VestelTV:
             async with aiohttp.ClientSession() as session:
                 async with session.delete(url + "Netflix/run") as _:
                     pass
-
 
     async def volume_up(self):
         """Increase volume by one step."""
@@ -253,6 +243,7 @@ class VestelTV:
 
     def _handle_off(self):
         """Sets various variables to off-state."""
+        _LOGGER.info("Handle_off() called")
         self.state = False
         self.youtube = "stopped"
         self.netflix = "stopped"
@@ -262,7 +253,12 @@ class VestelTV:
         _LOGGER.debug("Device state update initiated.")
         if not self.broadcast.discovered():
             _LOGGER.debug("Device not discovered. Turned off.")
-            self._handle_off()
+            if self.state == True:
+                self._handle_off()
+            if self.writer:
+                self._tcp_close()                
+            if self.websocket:
+                self._ws_close()                
         else:
             try:
                 await asyncio.wait_for(self._read_data(), 5)
@@ -271,13 +267,16 @@ class VestelTV:
 
     async def _read_data(self):
         """Private method for reading data."""
-        if not self._ws_connected:
+        if not self.get_websocket_state():
             _LOGGER.info("Trying to connect WS...")
             await self._ws_connect()
             _LOGGER.info("WS connect successful!")
+        else:
+            pong_waiter = await self.websocket.ping()
+            await pong_waiter
 
         try:
-            if not self._tcp_connected:
+            if not self.writer:
                 _LOGGER.debug("Trying to connect TCP...")
                 await self._tcp_connect()
                 _LOGGER.debug("TCP connect successful!")
