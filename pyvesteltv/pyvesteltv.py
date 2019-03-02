@@ -114,7 +114,7 @@ class VestelTV:
                 else:
                     msg = msg.split(":")
                     if msg[0] == "tv_status":
-                        self.state = bool(msg[1])
+                        self.state = (msg[1] == "1")
         except ConnectionClosed as exp:
             self._debug("Error in _ws_loop: " + str(exp))
         finally:
