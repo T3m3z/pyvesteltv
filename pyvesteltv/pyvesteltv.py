@@ -97,6 +97,7 @@ class VestelTV:
                 _LOGGER.debug("Received WS msg: " + msg)
                 if msg.startswith("<tv_state value='"):
                     data = msg.split("'")[1]
+                    self.state = True
                     if not data and time() - self.ws_time < 1.5:
                         self.ws_counter += 1
                         if self.ws_counter >= 2:
