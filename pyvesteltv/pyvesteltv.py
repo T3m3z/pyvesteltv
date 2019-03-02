@@ -4,10 +4,13 @@ pyVestelTV: Remote control of Vestel TV sets.
 """
 
 from time import time
+import logging
 import asyncio
 import aiohttp
 from .broadcast import Broadcast
 from websockets.exceptions import InvalidHandshake, InvalidURI, ConnectionClosed
+
+_LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=too-many-instance-attributes
 class VestelTV:
@@ -41,8 +44,6 @@ class VestelTV:
         self._ws_connected = False
         self._tcp_connected = False
 
-        self.debug_enabled = False
-
         self.ws_time = 0
         self.ws_counter = 0
 
@@ -53,11 +54,6 @@ class VestelTV:
             lambda: self.broadcast, local_addr=('0.0.0.0', 1900))
         self.loop.create_task(coro)
 
-    def _debug(self, msg):
-        """If debug enabled, print debug messages."""
-        if self.debug_enabled:
-            print(msg)
-
     async def _tcp_connect(self):
         """Try to connect to TV's TCP port."""
         try:
@@ -67,7 +63,7 @@ class VestelTV:
             self._tcp_connected = True
             self.state = True
         except TimeoutError:
-            self._debug("TCP connect error")
+            _LOGGER.error("TCP connect TimeoutError")
             self._tcp_connected = False
             self._handle_off()
 
@@ -83,7 +79,7 @@ class VestelTV:
         try:
             self.websocket = await websockets.connect('ws://%s:%s/' % (self.host, self.ws_port))
         except (InvalidHandshake, InvalidURI) as exp:
-            self._debug("WS connect error: " + str(exp))
+            _LOGGER.error("WS connect error: " + str(exp))
             self._handle_off()
             self._ws_connected = False
             return
@@ -97,9 +93,8 @@ class VestelTV:
             while True:
                 msg = await self.websocket.recv()
                 msg = msg.strip()
-                self._debug(msg)
                 self.last_ws_msg = msg
-                self._debug("Received WS msg: " + msg)
+                _LOGGER.debug("Received WS msg: " + msg)
                 if msg.startswith("<tv_state value='"):
                     data = msg.split("'")[1]
                     if not data and time() - self.ws_time < 1.5:
@@ -116,7 +111,7 @@ class VestelTV:
                     if msg[0] == "tv_status":
                         self.state = (msg[1] == "1")
         except ConnectionClosed as exp:
-            self._debug("Error in _ws_loop: " + str(exp))
+            _LOGGER.error("Error in _ws_loop: ", exc_info=True)
         finally:
             await self._ws_close()
             self._handle_off()
@@ -263,9 +258,9 @@ class VestelTV:
 
     async def update(self):
         """ Method to update state of the device."""
-        self._debug("Update called")
+        _LOGGER.debug("Device state update initiated.")
         if not self.broadcast.discovered():
-            self._debug("Not discovered -> turned off")
+            _LOGGER.debug("Device not discovered. Turned off.")
             self._handle_off()
         else:
             try:
@@ -276,34 +271,33 @@ class VestelTV:
     async def _read_data(self):
         """Private method for reading data."""
         if not self._ws_connected:
-            self._debug("Trying to connect WS...")
+            _LOGGER.info("Trying to connect WS...")
             await self._ws_connect()
-            self._debug("WS connect successful!")
+            _LOGGER.info("WS connect successful!")
 
         try:
-            self._debug("!")
             if not self._tcp_connected:
-                self._debug("Trying to connect TCP...")
+                _LOGGER.debug("Trying to connect TCP...")
                 await self._tcp_connect()
-                self._debug("TCP connect successful!")
+                _LOGGER.debug("TCP connect successful!")
 
             self.muted = await self._read_tcp_data("GETMUTE\r\n",
                                                    lambda x: True if x == "ON" else False)
             self.program = await self._read_tcp_data("GETPROGRAM\r\n")
             self.source = await self._read_tcp_data("GETSOURCE\r\n")
             self.volume = await self._read_tcp_data("GETHEADPHONEVOLUME\r\n", int)
-            self._debug("TCP read ready!")
+            _LOGGER.debug("TCP read ready!")
         except Exception as exp:
             await self._tcp_close()
-            self._debug("TCP connect/read error: " + str(exp))
+            _LOGGER.error("TCP connect/read error:", exc_info=True)
 
         try:
-            self._debug("Trying to read state of applications...")
+            _LOGGER.debug("Trying to read state of applications...")
             self.youtube = await self._read_app_state("YouTube")
             self.netflix = await self._read_app_state("Netflix")
-            self._debug("Application states updated!")
+            _LOGGER.debug("Application states updated!")
         except aiohttp.ClientError as exp:
-            self._debug("Application state read failed: " + str(exp))
+            _LOGGER.error("Application state read failed:", exc_info=True)
 
         # FOLLOWING TCP commands could be added:
         # GETSTANDBY
