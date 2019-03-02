@@ -159,6 +159,35 @@ class VestelTV:
     def discovered(self):
         """Returns boolean indicating if TV is discovered through DIAL."""
         return self.broadcast.discovered()
+        
+    async def start_youtube(self):
+        """Start YouTube using DIAL"""
+        url = self.broadcast.get_app_url()
+        if url:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url + "YouTube") as _:
+                    pass
+
+    async def stop_youtube(self):
+        """Stop YouTube by changing source"""
+        await self.sendkey(1056)
+
+    async def start_netflix(self):
+        """Start Netflix using DIAL"""
+        url = self.broadcast.get_app_url()
+        if url:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url + "Netflix") as _:
+                    pass
+
+    async def stop_netflix(self):
+        """Stop Netflix using DIAL"""
+        url = self.broadcast.get_app_url()
+        if url:
+            async with aiohttp.ClientSession() as session:
+                async with session.delete(url + "Netflix/run") as _:
+                    pass
+
 
     async def volume_up(self):
         """Increase volume by one step."""
