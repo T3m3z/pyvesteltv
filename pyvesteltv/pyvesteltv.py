@@ -33,6 +33,11 @@ class VestelTV:
         self.youtube = "stopped"
         self.netflix = "stopped"
         self.ws_state = ""
+        
+        self.colour = 0
+        self.sharpness = 0
+        self.contrast = 0
+        self.brightness = 0
 
         self.reader = None
         self.writer = None
@@ -139,6 +144,22 @@ class VestelTV:
     def get_muted(self):
         """Returns boolean indicating if TV is muted"""
         return self.muted
+        
+    def get_colour(self):
+        """Returns colour value"""
+        return self.colour
+    
+    def get_sharpness(self):
+        """Returns sharpness value"""
+        return self.sharpness
+        
+    def get_contrast(self):
+        """Returns contrast value"""
+        return self.contrast
+        
+    def get_brightness(self):
+        """Returns brightness value"""
+        return self.brightness
 
     def get_websocket_state(self):
         return self.websocket is not None and self.websocket.open
@@ -286,6 +307,10 @@ class VestelTV:
             self.program = await self._read_tcp_data("GETPROGRAM\r\n")
             self.source = await self._read_tcp_data("GETSOURCE\r\n")
             self.volume = await self._read_tcp_data("GETHEADPHONEVOLUME\r\n", int)
+            self.colour = await self._read_tcp_data("GETCOLOUR\r\n", int)
+            self.contrast = await self._read_tcp_data("GETCONTRAST\r\n", int)
+            self.sharpness = await self._read_tcp_data("GETSHARPNESS\r\n", int)
+            self.brightness = await self._read_tcp_data("GETBRIGHTNESS \r\n", int)
             _LOGGER.debug("TCP read ready!")
         except Exception as exp:
             await self._tcp_close()
