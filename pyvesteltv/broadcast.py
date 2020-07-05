@@ -4,12 +4,13 @@ import aiohttp
 class Broadcast:
     """Broadcast class used for discovery purposes and maintaining correct device state."""
 
-    def __init__(self, loop, host=None, msg=""):
+    def __init__(self, loop, host=None, msg="", broadcast_interval = 5, discovery_retries = 3):
         """Init broadcast class."""
         self.loop = loop
         self.url = None
         self.last_discovery = 0
-        self.discovery_timeout = 10
+        self.broadcast_interval = broadcast_interval
+        self.discovery_timeout = discovery_retries*self.broadcast_interval + 1
         self.msg = msg.encode()
         self.host = host
         self.transport = None
@@ -52,4 +53,4 @@ class Broadcast:
     def broadcast(self):
         """Broadcasting of DIAL message."""
         self.transport.sendto(self.msg, ('239.255.255.250', 1900))
-        self.loop.call_later(5, self.broadcast)
+        self.loop.call_later(self.broadcast_interval, self.broadcast)
