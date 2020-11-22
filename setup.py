@@ -8,7 +8,7 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 
 setup(name='pyvesteltv',
-      version='0.1.3',
+      version='0.1.5',
       description='A library to interface with some Vestel TV sets',
       url='https://github.com/T3m3z/pyvesteltv',
       long_description=README,

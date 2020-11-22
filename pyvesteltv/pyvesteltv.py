@@ -291,7 +291,7 @@ class VestelTV:
         else:
             try:
                 await asyncio.wait_for(self._read_data(), 5)
-            except asyncio.futures.TimeoutError:
+            except asyncio.TimeoutError:
                 self._handle_off()
 
     async def _read_data(self):
